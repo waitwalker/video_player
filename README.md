@@ -4,7 +4,7 @@
 
 A Flutter plugin for iOS and Android for playing back video on a Widget surface.
 
-![The example app running in iOS](https://github.com/flutter/plugins/blob/master/packages/video_player/video_player/doc/demo_ipod.gif?raw=true)
+![The example app running in iOS](https://github.com/flutter/plugins/blob/master/packages/video_player/doc/demo_ipod.gif?raw=true)
 
 *Note*: This plugin is still under development, and some APIs might not be available yet.
 [Feedback welcome](https://github.com/flutter/flutter/issues) and
@@ -32,7 +32,7 @@ This entry allows your app to access video files by URL.
 
 ### Android
 
-Ensure the following permission is present in your Android Manifest file, located in `<project root>/android/app/src/main/AndroidManifest.xml`:
+Ensure the following permission is present in your Android Manifest file, located in `<project root>/android/app/src/main/AndroidManifest.xml:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET"/>
