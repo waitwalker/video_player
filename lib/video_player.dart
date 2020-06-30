@@ -14,6 +14,11 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 export 'package:video_player_platform_interface/video_player_platform_interface.dart'
     show DurationRange, DataSourceType, VideoFormat;
 
+final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
+// This will clear all open videos on the platform when a full restart is
+// performed.
+  ..invokeMethod<void>('init');
+
 final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
   // This will clear all open videos on the platform when a full restart is
   // performed.
@@ -33,6 +38,7 @@ class VideoPlayerValue {
     this.isLooping = false,
     this.isBuffering = false,
     this.volume = 1.0,
+    this.speed = 1.0,
     this.errorDescription,
   });
 
@@ -57,6 +63,9 @@ class VideoPlayerValue {
 
   /// True if the video is playing. False if it's paused.
   final bool isPlaying;
+
+  /// play speed, default 1.0.
+  final double speed;
 
   /// True if the video is looping.
   final bool isLooping;
@@ -99,6 +108,7 @@ class VideoPlayerValue {
     bool isLooping,
     bool isBuffering,
     double volume,
+    double speed,
     String errorDescription,
   }) {
     return VideoPlayerValue(
@@ -110,6 +120,7 @@ class VideoPlayerValue {
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
       volume: volume ?? this.volume,
+      speed: speed ?? this.speed,
       errorDescription: errorDescription ?? this.errorDescription,
     );
   }
@@ -125,6 +136,7 @@ class VideoPlayerValue {
         'isLooping: $isLooping, '
         'isBuffering: $isBuffering'
         'volume: $volume, '
+        'speed: $speed, '
         'errorDescription: $errorDescription)';
   }
 }
@@ -366,6 +378,16 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _videoPlayerPlatform.setVolume(_textureId, value.volume);
   }
 
+  Future<void> _applySpeed() async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    _channel.invokeMethod<void>(
+      'setSpeed',
+      <String, dynamic>{'textureId': _textureId, 'speed': value.speed},
+    );
+  }
+
   /// The position in the current video.
   Future<Duration> get position async {
     if (_isDisposed) {
@@ -399,6 +421,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setVolume(double volume) async {
     value = value.copyWith(volume: volume.clamp(0.0, 1.0));
     await _applyVolume();
+  }
+
+  Future<void> setSpeed(double speed) async {
+    var old = value.speed;
+    if (old == speed) return;
+    value = value.copyWith(speed: speed.clamp(0.5, 3.0));
+    await _applySpeed();
   }
 }
 
