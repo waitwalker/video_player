@@ -140,6 +140,10 @@ class VideoPlayerValue {
 ///
 /// After [dispose] all further calls are ignored.
 class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
+
+  /// Defines if the speed control should be shown
+  bool allowSpeed;
+
   /// Constructs a [VideoPlayerController] playing a video from an asset.
   ///
   /// The name of the asset is given by the [dataSource] argument and must not be
@@ -157,7 +161,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// null.
   /// **Android only**: The [formatHint] option allows the caller to override
   /// the video format detection code.
-  VideoPlayerController.network(this.dataSource, {this.backgroundPlay = false,this.formatHint})
+  VideoPlayerController.network(this.dataSource, {this.backgroundPlay = false, this.formatHint, this.allowSpeed = true})
       : dataSourceType = DataSourceType.network,
         package = null,
         super(VideoPlayerValue(duration: null));
@@ -166,7 +170,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   ///
   /// This will load the file from the file-URI given by:
   /// `'file://${file.path}'`.
-  VideoPlayerController.file(File file,{this.backgroundPlay = false,})
+  VideoPlayerController.file(File file,{this.backgroundPlay = false, this.allowSpeed = true})
       : dataSource = 'file://${file.path}',
         dataSourceType = DataSourceType.file,
         package = null,
