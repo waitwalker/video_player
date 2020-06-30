@@ -1,5 +1,5 @@
 #import <Flutter/Flutter.h>
 
-@interface VideoplayerPlugin : NSObject<FlutterPlugin>
+@interface FLTVideoPlayerPlugin : NSObject <FlutterPlugin>
 @end
 
