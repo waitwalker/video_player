@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - videoplayer (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - videoplayer (from `.symlinks/plugins/videoplayer/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  videoplayer:
+    :path: ".symlinks/plugins/videoplayer/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 0e3d915762c693b495b44d77113d4970485de6ec
+  videoplayer: 79bd8ca2e2ff798315f495c5ca5ed901cfaf62c0
+
+PODFILE CHECKSUM: f32fb4e7c14f8b3ca19a369d7be425dd9241af27
+
+COCOAPODS: 1.9.1
