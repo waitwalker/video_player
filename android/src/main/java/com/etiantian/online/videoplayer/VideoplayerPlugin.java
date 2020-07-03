@@ -286,11 +286,7 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
   private static final String TAG = "VideoplayerPlugin";
   private final LongSparseArray<VideoPlayer> videoPlayers = new LongSparseArray<>();
   private FlutterState flutterState;
-
-
-  private MethodChannel channel;
-  private EventChannel eventChannel;
-
+  
   /** Register this with the v2 embedding for the plugin to respond to lifecycle callbacks. */
   public VideoplayerPlugin() {}
 
