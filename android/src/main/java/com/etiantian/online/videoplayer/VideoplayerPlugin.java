@@ -9,6 +9,7 @@ import android.content.Context;
 import android.media.PlaybackParams;
 import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Surface;
 import com.google.android.exoplayer2.C;
@@ -37,12 +38,14 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
+import io.flutter.view.FlutterMain;
 import io.flutter.view.TextureRegistry;
 
 import java.util.Arrays;
@@ -280,21 +283,44 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
     }
   }
 
+  private static final String TAG = "VideoplayerPlugin";
+  private final LongSparseArray<VideoPlayer> videoPlayers = new LongSparseArray<>();
+  private FlutterState flutterState;
+
+
   private MethodChannel channel;
   private EventChannel eventChannel;
 
+  /** Register this with the v2 embedding for the plugin to respond to lifecycle callbacks. */
+  public VideoplayerPlugin() {}
+
+  private VideoplayerPlugin(Registrar registrar) {
+    this.flutterState =
+            new FlutterState(
+                    registrar.context(),
+                    registrar.messenger(),
+                    registrar::lookupKeyForAsset,
+                    registrar::lookupKeyForAsset,
+                    registrar.textures());
+    flutterState.startListening(this);
+  }
+
   // 新的注册方法 v2
   @Override
-  public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
-    channel = new MethodChannel(flutterPluginBinding.getFlutterEngine().getDartExecutor(), "flutter.io/videoPlayer");
-    channel.setMethodCallHandler(this);
+  public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+    this.flutterState =
+            new FlutterState(
+                    binding.getApplicationContext(),
+                    binding.getFlutterEngine().getDartExecutor(),
+                    FlutterMain::getLookupKeyForAsset,
+                    FlutterMain::getLookupKeyForAsset,
+                    binding.getFlutterEngine().getRenderer());
+    flutterState.startListening(this);
   }
 
   // 就得注册方法 v1
   public static void registerWith(Registrar registrar) {
-    VideoplayerPlugin plugin = new VideoplayerPlugin(registrar);
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), "flutter.io/videoPlayer");
-    channel.setMethodCallHandler(plugin);
+    final VideoplayerPlugin plugin = new VideoplayerPlugin(registrar);
     registrar.addViewDestroyListener(
             view -> {
               plugin.onDestroy();
@@ -302,15 +328,6 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
             });
 
   }
-
-  private VideoplayerPlugin(Registrar registrar) {
-    this.registrar = registrar;
-    this.videoPlayers = new LongSparseArray<>();
-  }
-
-  private final LongSparseArray<VideoPlayer> videoPlayers;
-
-  final Registrar registrar;
 
   private void disposeAllPlayers() {
     for (int i = 0; i < videoPlayers.size(); i++) {
@@ -329,8 +346,7 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
 
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    TextureRegistry textures = registrar.textures();
-    if (textures == null) {
+    if (flutterState == null || flutterState.textureRegistry == null) {
       result.error("no_activity", "video_player plugin requires a foreground activity", null);
       return;
     }
@@ -340,20 +356,25 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case "create":
       {
-        TextureRegistry.SurfaceTextureEntry handle = textures.createSurfaceTexture();
-        EventChannel eventChannel = new EventChannel(registrar.messenger(), "flutter.io/videoPlayer/videoEvents" + handle.id());
+        TextureRegistry.SurfaceTextureEntry handle =
+                flutterState.textureRegistry.createSurfaceTexture();
+        EventChannel eventChannel =
+                new EventChannel(
+                        flutterState.binaryMessenger, "flutter.io/videoPlayer/videoEvents" + handle.id());
+
         VideoPlayer player;
         if (call.argument("asset") != null) {
           String assetLookupKey;
           if (call.argument("package") != null) {
             assetLookupKey =
-                    registrar.lookupKeyForAsset(call.argument("asset"), call.argument("package"));
+                    flutterState.keyForAssetAndPackageName.get(
+                            call.argument("asset"), call.argument("package"));
           } else {
-            assetLookupKey = registrar.lookupKeyForAsset(call.argument("asset"));
+            assetLookupKey = flutterState.keyForAsset.get(call.argument("asset"));
           }
           player =
                   new VideoPlayer(
-                          registrar.context(),
+                          flutterState.applicationContext,
                           eventChannel,
                           handle,
                           "asset:///" + assetLookupKey,
@@ -361,7 +382,12 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
           videoPlayers.put(handle.id(), player);
         } else {
           player =
-                  new VideoPlayer(registrar.context(), eventChannel, handle, call.argument("uri"), result);
+                  new VideoPlayer(
+                          flutterState.applicationContext,
+                          eventChannel,
+                          handle,
+                          call.argument("uri"),
+                          result);
           videoPlayers.put(handle.id(), player);
         }
         break;
@@ -427,6 +453,50 @@ public class VideoplayerPlugin implements FlutterPlugin, MethodCallHandler {
 
   @Override
   public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
+    if (flutterState == null) {
+      Log.wtf(TAG, "Detached from the engine before registering to it.");
+    }
+    flutterState.stopListening();
+    flutterState = null;
+  }
+
+  // 新的方法
+  private interface KeyForAssetFn {
+    String get(String asset);
+  }
+
+  private interface KeyForAssetAndPackageName {
+    String get(String asset, String packageName);
+  }
+
+  private static final class FlutterState {
+    private final Context applicationContext;
+    private final BinaryMessenger binaryMessenger;
+    private final KeyForAssetFn keyForAsset;
+    private final KeyForAssetAndPackageName keyForAssetAndPackageName;
+    private final TextureRegistry textureRegistry;
+    private final MethodChannel methodChannel;
+
+    FlutterState(
+            Context applicationContext,
+            BinaryMessenger messenger,
+            KeyForAssetFn keyForAsset,
+            KeyForAssetAndPackageName keyForAssetAndPackageName,
+            TextureRegistry textureRegistry) {
+      this.applicationContext = applicationContext;
+      this.binaryMessenger = messenger;
+      this.keyForAsset = keyForAsset;
+      this.keyForAssetAndPackageName = keyForAssetAndPackageName;
+      this.textureRegistry = textureRegistry;
+      methodChannel = new MethodChannel(messenger, "flutter.io/videoPlayer");
+    }
+
+    void startListening(VideoplayerPlugin methodCallHandler) {
+      methodChannel.setMethodCallHandler(methodCallHandler);
+    }
+
+    void stopListening() {
+      methodChannel.setMethodCallHandler(null);
+    }
   }
 }
